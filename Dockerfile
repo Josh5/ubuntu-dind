@@ -8,15 +8,24 @@ RUN \
         && apt-get install --no-install-recommends -y \
             apt-transport-https \
             apt-utils \
+            btrfs-progs \
             ca-certificates \
-            openssh-client \
             curl \
-            iptables \
+            e2fsprogs \
             git \
             gnupg \
+            iproute2 \
+            iptables \
+            libssl-dev \
+            openssh-client \
+            openssl \
+            pigz \
             software-properties-common \
-            supervisor \
+            uidmap \
             wget \
+            xfsprogs \
+            xz-utils \
+            zfsutils-linux \
     && \
     echo "**** Section cleanup ****" \
         && apt-get clean autoclean -y \
