@@ -2,10 +2,11 @@ FROM ubuntu:22.04
 
 LABEL maintainer="Josh.5 <jsunnex@gmail.com>"
 
+ENV TZ=Etc/UTC
 RUN \
     echo "**** Install dependencies ****" \
         && apt-get update \
-        && apt-get install --no-install-recommends -y \
+        && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
             apt-transport-https \
             apt-utils \
             btrfs-progs \
@@ -20,12 +21,16 @@ RUN \
             openssh-client \
             openssl \
             pigz \
+            tzdata \
             software-properties-common \
             uidmap \
             wget \
             xfsprogs \
             xz-utils \
             zfsutils-linux \
+    && \
+    echo "**** Configure default TZ as $TZ ****" \
+        && ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime \
     && \
     echo "**** Section cleanup ****" \
         && apt-get clean autoclean -y \

@@ -1,0 +1,64 @@
+# Run a development environment
+# For production compose examples, see documentation.
+---
+networks:
+  dind-private:
+    # NOTE: This network needs to be manually created and needs to
+    #       be configured for manual container attachment
+    external: true
+
+services:
+  dind:
+    image: ghcr.io/josh5/ubuntu-dind
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    deploy:
+      resources:
+        limits:
+          pids: 2048
+
+        # >- NVIDIA DEVICE -<
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: 1
+        #       capabilities:
+        #         - gpu
+
+    # >- PRIVILEGED MODE -<
+    privileged: true
+
+    # ENVIRONMENT:
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+
+    # NETWORK:
+    networks:
+      dind-private:
+        aliases:
+          - docker
+    ports:
+      - target: 2375
+        published: 2375
+        mode: host
+      - target: 2376
+        published: 2376
+        mode: host
+    hostname: Server
+    extra_hosts:
+      - Server:127.0.0.1
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${DATA_PATH:?}/certs
+        target: /certs
+      - type: bind
+        source: ${DATA_PATH:?}/etc
+        target: /etc/docker
+      - type: bind
+        source: ${DATA_PATH:?}/var
+        target: /var/lib/docker

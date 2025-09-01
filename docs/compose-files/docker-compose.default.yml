@@ -1,0 +1,81 @@
+---
+
+## docker run
+##   -d
+##   --name='dind'
+##   --net='eth0'
+##   --ip='192.168.1.201'
+##   --cpuset-cpus='1,2,3,7,8,9'
+##   --pids-limit 2048
+##   --privileged=true
+##   -e TZ="Pacific/Auckland"
+##   -e HOST_OS="Unraid"
+##   -e HOST_HOSTNAME="TheVault"
+##   -e HOST_CONTAINERNAME="dind"
+##   -e 'DOCKER_TLS_CERTDIR'='/certs'
+##   -e 'NVIDIA_VISIBLE_DEVICES'='all'
+##   -e 'NVIDIA_DRIVER_CAPABILITIES'='all'
+##   -l net.unraid.docker.managed=dockerman
+##   -l net.unraid.docker.icon='https://djeqr6to3dedg.cloudfront.net/repo-logos/library/docker/live/logo.png'
+##   -v '/mnt/user/system/dind/certs':'/certs':'rw'
+##   -v '/var/lib/docker/dind-var/dind':'/var/lib/docker':'rw'
+##   -v '/mnt/user/system/dind/etc':'/etc/docker':'rw'
+##   -v '/mnt':'/mnt':'rw'
+##   --gpus=1
+##   --hostname='TheVault'
+##   --add-host='TheVault:127.0.0.1'
+##   --restart='unless-stopped' 'ghcr.io/josh5/ubuntu-dind:latest'
+## 416b5213d6facf75dac667599afde92c82e297fa6566ba42b1e4f456033988c5
+
+networks:
+  eth0:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+
+services:
+  dind:
+    image: ghcr.io/josh5/ubuntu-dind:latest
+    restart: unless-stopped
+    # NOTE: This config uses privileged to access to host to be able to access the required devices
+    privileged: true
+
+    # GPU PASSTHROUGH
+    deploy:
+      resources:
+        reservations:
+          # Enable support for NVIDIA GPUs.
+          # 
+          # Ref: https://docs.docker.com/compose/gpu-support/#enabling-gpu-access-to-service-containers
+          devices:
+            - capabilities: [gpu]
+              device_ids: ["all"]
+
+    # NETWORK:
+    networks:
+      eth0:
+        ipv4_address: ${DIND_IP_ADDRESS}
+    hostname: ${HOST_HOSTNAME}
+    extra_hosts:
+      - "${HOST_HOSTNAME}:127.0.0.1"
+    
+    # ENVIRONMENT:
+    ## Read all config variables from the .env file
+    environment:
+      - TZ=${TZ}
+      - DOCKER_TLS_CERTDIR=/certs
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
+    # VOLUMES:
+    volumes:
+      # Container config
+      - ${DIND_CONFIG_PATH}/certs:/certs:rw
+      - ${DIND_CONFIG_PATH}/etc:/etc/docker:rw
+
+      # Docker data directory
+      - ${DIND_VAR_PATH}:/var/lib/docker:rw
+
+      # Add any mounts from the host here
+      - /mnt:/mnt:rw

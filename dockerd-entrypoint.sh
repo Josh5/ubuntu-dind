@@ -95,6 +95,11 @@ _tls_generate_certs() {
 	fi
 }
 
+# Configure TZ
+if [ "${TZ:-}" != "" ]; then
+    ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
+fi
+
 # no arguments passed
 # or first arg is `-f` or `--some-option`
 if [ "$#" -eq 0 ] || [ "${1#-}" != "$1" ]; then

@@ -1,3 +1,6 @@
 
-# Ignore dev files
+# Temp files
 /tmp/**
+
+# Development files
+.env
