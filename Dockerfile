@@ -41,7 +41,7 @@ RUN \
 # pre-add a "docker" group for socket usage
 RUN addgroup --system --gid 2375 docker
 
-ARG DOCKER_VERSION=27.3.1
+ARG DOCKER_VERSION=28.5.2
 ENV DOCKER_VERSION=$DOCKER_VERSION
 RUN set -eux; \
     \
