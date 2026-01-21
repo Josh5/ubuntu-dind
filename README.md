@@ -37,3 +37,21 @@ From the root of this project, run these commands:
     ```
     sudo docker compose up -d
     ```
+    To test this is working, run this:
+    ```
+    sudo docker run --rm -ti \
+        --network dind-private \
+        --env DOCKER_TLS_CERTDIR="/certs" \
+        --env DOCKER_HOST="tcp://docker:2376" \
+        --volume ./tmp/data/dind/certs/ca:/certs/ca \
+        --volume ./tmp/data/dind/certs/client:/certs/client \
+        docker:latest version
+    ```
+    or this if not configured with certs:
+    ```
+    sudo docker run --rm -ti \
+        --network dind-private \
+        --env DOCKER_TLS_CERTDIR="" \
+        --env DOCKER_HOST="tcp://docker:2375" \
+        docker:latest version
+    ```
