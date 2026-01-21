@@ -106,10 +106,13 @@ _is_truthy() {
 
 is_unprivileged_root() {
     [ "$(id -u)" -eq 0 ] || return 1
-    if [ -w /sys ] && [ -w /sys/kernel/security ]; then
-        return 1
+    if [ ! -w /sys ]; then
+        return 0
     fi
-    return 0
+    if [ -e /sys/kernel/security ] && [ ! -w /sys/kernel/security ]; then
+        return 0
+    fi
+    return 1
 }
 
 # Configure TZ
@@ -194,6 +197,10 @@ if [ "$1" = 'dockerd' ]; then
             chown "$uid:$uid" "$XDG_RUNTIME_DIR"
             chmod 0700 "$XDG_RUNTIME_DIR"
         fi
+        export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
+        if [ -d /var/run ]; then
+            ln -sf "${XDG_RUNTIME_DIR}/docker.sock" /var/run/docker.sock
+        fi
         exec gosu ubuntu "$0" "$@"
     fi
 
@@ -241,6 +248,7 @@ if [ "$1" = 'dockerd' ]; then
             chown "$uid:$uid" "$XDG_RUNTIME_DIR"
             chmod 0700 "$XDG_RUNTIME_DIR"
         fi
+        export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
 
         if [ -n "${DOCKER_TLS_CERTDIR:-}" ] && [ ! -r "${DOCKER_TLS_CERTDIR}/server/key.pem" ]; then
             echo >&2 "warning: TLS key not readable; disabling TLS for rootless mode"
