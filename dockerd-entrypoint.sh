@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+log() {
+    echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] $*"
+}
+
 _tls_ensure_private() {
     local f="$1"
     shift
@@ -107,9 +111,11 @@ _is_truthy() {
 is_unprivileged_root() {
     [ "$(id -u)" -eq 0 ] || return 1
     if [ ! -w /sys ]; then
+        log "rootless: /sys not writable"
         return 0
     fi
     if [ -e /sys/kernel/security ] && [ ! -w /sys/kernel/security ]; then
+        log "rootless: /sys/kernel/security not writable"
         return 0
     fi
     return 1
@@ -117,6 +123,7 @@ is_unprivileged_root() {
 
 # Configure TZ
 if [ "$(id -u)" = '0' ] && [ "${TZ:-}" != "" ] && [ -w /etc ]; then
+    log "configure TZ: ${TZ}"
     ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 fi
 
@@ -175,9 +182,11 @@ fi
 
 if [ "$1" = 'dockerd' ]; then
     # explicitly remove Docker's default PID file to ensure that it can start properly if it was stopped uncleanly (and thus didn't clean up the PID file)
+    log "starting dockerd entrypoint"
     find /run /var/run -iname 'docker*.pid' -delete || :
 
     if is_unprivileged_root; then
+        log "rootless fallback: dropping to ubuntu"
         if [ -n "${DOCKER_TLS_CERTDIR:-}" ] && [ -d "${DOCKER_TLS_CERTDIR}" ]; then
             if chown -R 1000:1000 "$DOCKER_TLS_CERTDIR" 2>/dev/null; then
                 chmod -R u+rwX,go+rX "$DOCKER_TLS_CERTDIR" || true
@@ -197,6 +206,7 @@ if [ "$1" = 'dockerd' ]; then
             chown "$uid:$uid" "$XDG_RUNTIME_DIR"
             chmod 0700 "$XDG_RUNTIME_DIR"
         fi
+        log "rootless: XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
         export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
         if [ -d /var/run ]; then
             ln -sf "${XDG_RUNTIME_DIR}/docker.sock" /var/run/docker.sock
@@ -265,15 +275,19 @@ if [ "$1" = 'dockerd' ]; then
         fi
 
         if [ -n "${DOCKER_TLS_CERTDIR:-}" ]; then
+            log "rootless: TLS enabled on 2376"
             export DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS="${DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS:-} -p 0.0.0.0:2376:2376/tcp"
             if _is_truthy "${DOCKER_FORCE_INSECURE_TCP:-}"; then
+                log "rootless: insecure TCP enabled on 2375"
                 export DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS="${DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS} -p 0.0.0.0:2375:2375/tcp"
             fi
         else
+            log "rootless: TLS disabled, exposing 2375"
             export DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS="${DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS:-} -p 0.0.0.0:2375:2375/tcp"
         fi
 
         dockerInit="$(command -v docker-init || echo /usr/local/bin/docker-init)"
+        log "rootless: starting dockerd-rootless.sh"
         shift
         exec "$dockerInit" -- /home/ubuntu/.docker/bin/dockerd-rootless.sh "$@"
     fi
