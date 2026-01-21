@@ -53,6 +53,9 @@
 #   CERTS_PATH=/mnt/user/system/dind-swarm-worker/certs
 #   #-  - DATA_PATH -
 #   DATA_PATH=/var/lib/docker/dind-var/dind-swarm-worker
+#   #-  - DOCKER_FORCE_INSECURE_TCP -
+#   #-    Expose tcp://0.0.0.0:2375 even when TLS is enabled on 2376.
+#   DOCKER_FORCE_INSECURE_TCP=false
 #
 #   #@ NVIDIA Config
 #   #-  - NVIDIA_VISIBLE_DEVICES -
@@ -118,6 +121,7 @@ services:
       HOST_OS: ${HOST_OS}
       HOST_HOSTNAME: ${HOST_HOSTNAME:?}
       HOST_CONTAINERNAME: ${HOST_CONTAINERNAME:?}
+      DOCKER_FORCE_INSECURE_TCP: ${DOCKER_FORCE_INSECURE_TCP:-false}
       NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
       NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-all}
 
