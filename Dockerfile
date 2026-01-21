@@ -53,6 +53,11 @@ RUN \
 # pre-add a "docker" group for socket usage
 RUN addgroup --system --gid 2375 docker
 
+# Add ubuntu user
+RUN adduser --system --uid 1000 --home /home/ubuntu --shell /bin/bash ubuntu; \
+    echo 'ubuntu:165536:65536' >> /etc/subuid; \
+    echo 'ubuntu:165536:65536' >> /etc/subgid
+
 ARG DOCKER_VERSION=28.5.2
 ENV DOCKER_VERSION=$DOCKER_VERSION
 RUN set -eux; \
@@ -61,30 +66,52 @@ RUN set -eux; \
     case "$imageArch" in \
         'x86_64') \
             url="https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION:?}.tgz"; \
+            urlRootless="https://download.docker.com/linux/static/stable/x86_64/docker-rootless-extras-${DOCKER_VERSION:?}.tgz"; \
             ;; \
         'armhf') \
             url="https://download.docker.com/linux/static/stable/armel/docker-${DOCKER_VERSION:?}.tgz"; \
+            urlRootless="https://download.docker.com/linux/static/stable/armel/docker-rootless-extras-${DOCKER_VERSION:?}.tgz"; \
             ;; \
         'armv7') \
             url="https://download.docker.com/linux/static/stable/armhf/docker-${DOCKER_VERSION:?}.tgz"; \
+            urlRootless="https://download.docker.com/linux/static/stable/armhf/docker-rootless-extras-${DOCKER_VERSION:?}.tgz"; \
             ;; \
         'aarch64') \
             url="https://download.docker.com/linux/static/stable/aarch64/docker-${DOCKER_VERSION:?}.tgz"; \
+            urlRootless="https://download.docker.com/linux/static/stable/aarch64/docker-rootless-extras-${DOCKER_VERSION:?}.tgz"; \
             ;; \
         *) echo >&2 "error: unsupported 'docker.tgz' architecture ($imageArch)"; exit 1 ;; \
     esac; \
     \
-    wget -O 'docker.tgz' "$url"; \
+    tmpdir="$(mktemp -d)"; \
+    wget -O "$tmpdir/docker.tgz" "$url"; \
+    wget -O "$tmpdir/rootless.tgz" "$urlRootless"; \
     \
     tar --extract \
-        --file docker.tgz \
+        --file "$tmpdir/docker.tgz" \
         --strip-components 1 \
         --directory /usr/local/bin/ \
         --no-same-owner \
     ; \
-    rm docker.tgz; \
+    mkdir -p /home/ubuntu/.docker/bin; \
+    tar --extract \
+        --file "$tmpdir/docker.tgz" \
+        --strip-components 1 \
+        --directory /home/ubuntu/.docker/bin/ \
+        --no-same-owner \
+    ; \
+    tar --extract \
+        --file "$tmpdir/rootless.tgz" \
+        --strip-components 1 \
+        --directory /home/ubuntu/.docker/bin/ \
+        --no-same-owner \
+    ; \
+    rm -rf "$tmpdir"; \
+    \
+    chown -R 1000:1000 /home/ubuntu/.docker; \
     \
     docker --version; \
+    /home/ubuntu/.docker/bin/docker -v; \
     dockerd --version; \
     containerd --version; \
     ctr --version; \
@@ -201,21 +228,6 @@ RUN set -eux; \
     adduser --system --group dockremap; \
     echo 'dockremap:165536:65536' >> /etc/subuid; \
     echo 'dockremap:165536:65536' >> /etc/subgid
-
-# Add ubuntu user
-RUN adduser --system --uid 1000 --home /home/ubuntu --shell /bin/bash ubuntu; \
-    echo 'ubuntu:165536:65536' >> /etc/subuid; \
-    echo 'ubuntu:165536:65536' >> /etc/subgid
-
-# Install Docker in rootless mode as ubuntu user
-COPY tmp/rootless-install-script.sh /usr/local/bin/rootless-install.sh
-RUN chmod +x /usr/local/bin/rootless-install.sh
-USER ubuntu
-RUN export SKIP_IPTABLES=1 SKIP_ROOTLESS_SETUP=1 DOCKER_VERSION="${DOCKER_VERSION}" DOCKER_BIN="/home/ubuntu/.docker/bin" \
-    && /usr/local/bin/rootless-install.sh \
-    && /home/ubuntu/.docker/bin/docker -v
-
-USER root
 
 # https://github.com/docker/docker/tree/master/hack/dind
 ENV DIND_COMMIT 65cfcc28ab37cb75e1560e4b4738719c07c6618e
