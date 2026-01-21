@@ -186,7 +186,7 @@ RUN mkdir /certs /certs/client && chmod 1777 /certs /certs/client
 # set up subuid/subgid so that "--userns-remap=default" works out-of-the-box
 RUN set -eux; \
     addgroup --system dockremap; \
-    adduser --system --no-create-home --group dockremap; \
+    adduser --system --group dockremap; \
     echo 'dockremap:165536:65536' >> /etc/subuid; \
     echo 'dockremap:165536:65536' >> /etc/subgid
 
@@ -197,24 +197,34 @@ RUN set -eux; \
     wget -O /usr/local/bin/dind "https://raw.githubusercontent.com/docker/docker/${DIND_COMMIT}/hack/dind"; \
     chmod +x /usr/local/bin/dind
 
-# NVIDIA Container Toolkit and Docker
+# NVIDIA Container Toolkit (x86 only)
 RUN \
-    echo "**** Add nvidia runtime apt repo ****" \
-        && mkdir -pm755 /etc/apt/keyrings && curl -fsSL "https://download.docker.com/linux/ubuntu/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && chmod a+r /etc/apt/keyrings/docker.gpg \
-        && mkdir -pm755 /etc/apt/sources.list.d && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(grep UBUNTU_CODENAME= /etc/os-release | cut -d= -f2 | tr -d '\"') stable" > /etc/apt/sources.list.d/docker.list \
-        && mkdir -pm755 /usr/share/keyrings && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-        && curl -fsSL "https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list" | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null \
+    if uname -m | grep -q x86; then \
+        echo "**** Add Nvidia runtime apt repo ****" \
+            && mkdir -pm755 /etc/apt/keyrings && curl -fsSL "https://download.docker.com/linux/ubuntu/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && chmod a+r /etc/apt/keyrings/docker.gpg \
+            && mkdir -pm755 /etc/apt/sources.list.d && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(grep UBUNTU_CODENAME= /etc/os-release | cut -d= -f2 | tr -d '\"') stable" > /etc/apt/sources.list.d/docker.list \
+            && mkdir -pm755 /usr/share/keyrings && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+            && curl -fsSL "https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list" | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null \
+        && \
+        echo "**** Install Nvidia runtime apt repo ****" \
+            && apt-get update \
+            && apt-get install --no-install-recommends -y \
+                nvidia-container-toolkit \
+        && \
+        echo "**** Section cleanup ****" \
+            && apt-get clean autoclean -y \
+            && apt-get autoremove -y \
+            && rm -rf \
+                    /var/lib/apt/lists/* \
+        && \
+        echo \
+    ; else \
+        echo "**** Nvidia runtime packages not support on $(uname -m) arch ****" \
+        && \
+        echo \
+    ; fi \
     && \
-    echo "**** Install nvidia runtime apt repo ****" \
-        && apt-get update \
-        && apt-get install --no-install-recommends -y \
-            nvidia-container-toolkit \
-    && \
-    echo "**** Section cleanup ****" \
-        && apt-get clean autoclean -y \
-        && apt-get autoremove -y \
-        && rm -rf \
-                /var/lib/apt/lists/*
+    echo
 
 COPY modprobe.sh /usr/local/bin/modprobe
 COPY dockerd-entrypoint.sh /usr/local/bin/

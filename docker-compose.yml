@@ -29,6 +29,16 @@ services:
     # >- PRIVILEGED MODE -<
     privileged: true
 
+    # # >- UNPRIVILEGED MODE (WIP) -<
+    # cap_add:
+    #   - SYS_ADMIN
+    #   - NET_ADMIN
+    #   - SYS_NICE
+    #   - NET_RAW
+    # security_opt:
+    #   - seccomp:unconfined
+    #   - apparmor:unconfined
+
     # ENVIRONMENT:
     environment:
       DOCKER_TLS_CERTDIR: /certs

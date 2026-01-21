@@ -23,23 +23,23 @@ From the root of this project, run these commands:
 4) Create the custom docker network.
     a) Bridge
     ```
-    sudo docker network create dind-private
+    docker network create dind-private
     ```
 
 5) Build the docker image.
     ```
-    sudo docker compose build
+    docker compose build
     ```
 
 6) Modify any additional config options in the `.env` file.
 
 7) Run the dev compose stack
     ```
-    sudo docker compose up -d
+    docker compose up -d
     ```
     To test this is working, run this:
     ```
-    sudo docker run --rm -ti \
+    docker run --rm -ti \
         --network dind-private \
         --env DOCKER_TLS_CERTDIR="/certs" \
         --env DOCKER_HOST="tcp://docker:2376" \
@@ -49,7 +49,7 @@ From the root of this project, run these commands:
     ```
     or this if not configured with certs:
     ```
-    sudo docker run --rm -ti \
+    docker run --rm -ti \
         --network dind-private \
         --env DOCKER_TLS_CERTDIR="" \
         --env DOCKER_HOST="tcp://docker:2375" \
