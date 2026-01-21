@@ -27,21 +27,24 @@ services:
         #         - gpu
 
     # >- PRIVILEGED MODE -<
-    privileged: true
+    # privileged: true
 
-    # # >- UNPRIVILEGED MODE (WIP) -<
-    # cap_add:
-    #   - SYS_ADMIN
-    #   - NET_ADMIN
-    #   - SYS_NICE
-    #   - NET_RAW
-    # security_opt:
-    #   - seccomp:unconfined
-    #   - apparmor:unconfined
+    # >- UNPRIVILEGED MODE -<
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_NICE
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
 
     # ENVIRONMENT:
     environment:
       DOCKER_TLS_CERTDIR: /certs
+      DOCKER_FORCE_INSECURE_TCP: ""
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: all
 

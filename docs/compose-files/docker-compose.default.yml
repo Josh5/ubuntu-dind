@@ -1,81 +1,116 @@
+# ---------------
+# Default (Privileged)
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+#   #@ Host Config
+#   #-  - HOST_HOSTNAME -
+#   #-    The host's hostname.
+#   HOST_HOSTNAME=Server
+#   #-  - HOST_CONTAINERNAME -
+#   #-    Container name for this instance.
+#   HOST_CONTAINERNAME=dind
+#   #-  - HOST_OS -
+#   #-    The host OS name.
+#   HOST_OS=Unraid
+#   #-  - TZ -
+#   #-    The timezone.
+#   TZ=Etc/UTC
+#
+#   #@ Network Config
+#   #-  - DIND_SUBNET -
+#   #-    Docker network subnet (CIDR).
+#   DIND_SUBNET=192.168.1.0/24
+#   #-  - DIND_IP_ADDRESS -
+#   #-    The container IPv4 address.
+#   DIND_IP_ADDRESS=192.168.1.201
+#
+#   #@ Resource Limits
+#   #-  - DEFAULT_CPUSET -
+#   #-    Limit the CPUs available to the container.
+#   DEFAULT_CPUSET=0-3
+#   #-  - DEFAULT_CPUSHARES -
+#   #-    Relative CPU share weight.
+#   DEFAULT_CPUSHARES=1024
+#   #-  - DEFAULT_MEMLIMIT -
+#   #-    Limit each running container's memory to this.
+#   DEFAULT_MEMLIMIT=256m
+#   #-  - DEFAULT_MEMRESERVATION -
+#   #-    Memory soft reservation.
+#   DEFAULT_MEMRESERVATION=128m
+#   #-  - DEFAULT_SHMSIZE -
+#   #-    /dev/shm size.
+#   DEFAULT_SHMSIZE=64m
+#
+#   #@ Container Config
+#   #-  - CONFIG_PATH -
+#   CONFIG_PATH=/mnt/user/system/dind/etc
+#   #-  - CERTS_PATH -
+#   CERTS_PATH=/mnt/user/system/dind/certs
+#   #-  - DATA_PATH -
+#   DATA_PATH=/var/lib/docker/dind-var/dind
+#   #-  - DOCKER_FORCE_INSECURE_TCP -
+#   #-    Expose tcp://0.0.0.0:2375 even when TLS is enabled on 2376.
+#   DOCKER_FORCE_INSECURE_TCP=false
+#
+# ---------------
 ---
-
-## docker run
-##   -d
-##   --name='dind'
-##   --net='eth0'
-##   --ip='192.168.1.201'
-##   --cpuset-cpus='1,2,3,7,8,9'
-##   --pids-limit 2048
-##   --privileged=true
-##   -e TZ="Pacific/Auckland"
-##   -e HOST_OS="Unraid"
-##   -e HOST_HOSTNAME="TheVault"
-##   -e HOST_CONTAINERNAME="dind"
-##   -e 'DOCKER_TLS_CERTDIR'='/certs'
-##   -e 'NVIDIA_VISIBLE_DEVICES'='all'
-##   -e 'NVIDIA_DRIVER_CAPABILITIES'='all'
-##   -l net.unraid.docker.managed=dockerman
-##   -l net.unraid.docker.icon='https://djeqr6to3dedg.cloudfront.net/repo-logos/library/docker/live/logo.png'
-##   -v '/mnt/user/system/dind/certs':'/certs':'rw'
-##   -v '/var/lib/docker/dind-var/dind':'/var/lib/docker':'rw'
-##   -v '/mnt/user/system/dind/etc':'/etc/docker':'rw'
-##   -v '/mnt':'/mnt':'rw'
-##   --gpus=1
-##   --hostname='TheVault'
-##   --add-host='TheVault:127.0.0.1'
-##   --restart='unless-stopped' 'ghcr.io/josh5/ubuntu-dind:latest'
-## 416b5213d6facf75dac667599afde92c82e297fa6566ba42b1e4f456033988c5
-
 networks:
   eth0:
     driver: bridge
     ipam:
       config:
-        - subnet: 192.168.1.0/24
+        - subnet: ${DIND_SUBNET:-192.168.1.0/24}
 
 services:
   dind:
     image: ghcr.io/josh5/ubuntu-dind:latest
     restart: unless-stopped
-    # NOTE: This config uses privileged to access to host to be able to access the required devices
+    ipc: private
     privileged: true
+    pids_limit: 2048
 
-    # GPU PASSTHROUGH
-    deploy:
-      resources:
-        reservations:
-          # Enable support for NVIDIA GPUs.
-          # 
-          # Ref: https://docs.docker.com/compose/gpu-support/#enabling-gpu-access-to-service-containers
-          devices:
-            - capabilities: [gpu]
-              device_ids: ["all"]
+    # RESOURCES:
+    cpuset: ${DEFAULT_CPUSET:-}
+    cpu_shares: ${DEFAULT_CPUSHARES:-1024}
+    mem_limit: ${DEFAULT_MEMLIMIT:-0}
+    mem_reservation: ${DEFAULT_MEMRESERVATION:-0}
+    shm_size: ${DEFAULT_SHMSIZE:-}
 
     # NETWORK:
     networks:
       eth0:
-        ipv4_address: ${DIND_IP_ADDRESS}
-    hostname: ${HOST_HOSTNAME}
+        ipv4_address: ${DIND_IP_ADDRESS:?}
+    hostname: ${HOST_HOSTNAME:?}
     extra_hosts:
-      - "${HOST_HOSTNAME}:127.0.0.1"
-    
+      - '${HOST_HOSTNAME:?}:127.0.0.1'
+
     # ENVIRONMENT:
-    ## Read all config variables from the .env file
     environment:
-      - TZ=${TZ}
-      - DOCKER_TLS_CERTDIR=/certs
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+      TZ: ${TZ}
+      HOST_OS: ${HOST_OS}
+      HOST_HOSTNAME: ${HOST_HOSTNAME:?}
+      HOST_CONTAINERNAME: ${HOST_CONTAINERNAME:?}
+      DOCKER_TLS_CERTDIR: /certs
+      DOCKER_FORCE_INSECURE_TCP: ${DOCKER_FORCE_INSECURE_TCP:-false}
 
     # VOLUMES:
     volumes:
       # Container config
-      - ${DIND_CONFIG_PATH}/certs:/certs:rw
-      - ${DIND_CONFIG_PATH}/etc:/etc/docker:rw
+      - type: bind
+        source: ${CERTS_PATH}
+        target: /certs
+      - type: bind
+        source: ${CONFIG_PATH}
+        target: /etc/docker
 
       # Docker data directory
-      - ${DIND_VAR_PATH}:/var/lib/docker:rw
+      - type: bind
+        source: ${DATA_PATH}
+        target: /var/lib/docker
 
       # Add any mounts from the host here
-      - /mnt:/mnt:rw
+      - type: bind
+        source: /mnt
+        target: /mnt

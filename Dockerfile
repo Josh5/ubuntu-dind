@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 LABEL maintainer="Josh.5 <jsunnex@gmail.com>"
 
@@ -12,22 +12,34 @@ RUN \
             btrfs-progs \
             ca-certificates \
             curl \
+            dumb-init \
             e2fsprogs \
             git \
             gnupg \
+            gosu \
             iproute2 \
             iptables \
+            kmod \
             libssl-dev \
             openssh-client \
             openssl \
             pigz \
-            tzdata \
+            rootlesskit \
+            slirp4netns \
             software-properties-common \
+            tzdata \
             uidmap \
             wget \
             xfsprogs \
             xz-utils \
             zfsutils-linux \
+    && \
+    echo "**** Remove rootlessctl ****" \
+        && rm -rf \
+            /usr/bin/rootlessctl \
+            /usr/bin/containerd-shim-runc-v1 \
+            /usr/bin/containerd-shim \
+            /usr/bin/ctr \
     && \
     echo "**** Configure default TZ as $TZ ****" \
         && ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime \
@@ -190,6 +202,21 @@ RUN set -eux; \
     echo 'dockremap:165536:65536' >> /etc/subuid; \
     echo 'dockremap:165536:65536' >> /etc/subgid
 
+# Add ubuntu user
+RUN adduser --system --uid 1000 --home /home/ubuntu --shell /bin/bash ubuntu; \
+    echo 'ubuntu:165536:65536' >> /etc/subuid; \
+    echo 'ubuntu:165536:65536' >> /etc/subgid
+
+# Install Docker in rootless mode as ubuntu user
+COPY tmp/rootless-install-script.sh /usr/local/bin/rootless-install.sh
+RUN chmod +x /usr/local/bin/rootless-install.sh
+USER ubuntu
+RUN export SKIP_IPTABLES=1 SKIP_ROOTLESS_SETUP=1 DOCKER_VERSION="${DOCKER_VERSION}" DOCKER_BIN="/home/ubuntu/.docker/bin" \
+    && /usr/local/bin/rootless-install.sh \
+    && /home/ubuntu/.docker/bin/docker -v
+
+USER root
+
 # https://github.com/docker/docker/tree/master/hack/dind
 ENV DIND_COMMIT 65cfcc28ab37cb75e1560e4b4738719c07c6618e
 
@@ -197,6 +224,7 @@ RUN set -eux; \
     wget -O /usr/local/bin/dind "https://raw.githubusercontent.com/docker/docker/${DIND_COMMIT}/hack/dind"; \
     chmod +x /usr/local/bin/dind
 
+# TODO: Uncomment below once we have rootless development complete
 # NVIDIA Container Toolkit (x86 only)
 RUN \
     if uname -m | grep -q x86; then \
@@ -225,6 +253,12 @@ RUN \
     ; fi \
     && \
     echo
+
+# Add the Python "User Script Directory" to the PATH
+ENV PATH="${PATH}:${HOME}/.local/bin:/home/ubuntu/bin:/home/ubuntu/.docker/bin"
+ENV ImageOS=ubuntu24
+RUN echo "PATH=${PATH}" > /etc/environment \
+    && echo "ImageOS=${ImageOS}" >> /etc/environment
 
 COPY modprobe.sh /usr/local/bin/modprobe
 COPY dockerd-entrypoint.sh /usr/local/bin/

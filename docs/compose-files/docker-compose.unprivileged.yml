@@ -1,0 +1,105 @@
+# ---------------
+# Unprivileged (Rootless)
+#
+# ---------------
+# Config (paste into portainer advance env text input):
+#
+#   #@ Host Config
+#   #-  - HOST_HOSTNAME -
+#   #-    The host's hostname.
+#   HOST_HOSTNAME=Server
+#   #-  - HOST_CONTAINERNAME -
+#   #-    Container name for this instance.
+#   HOST_CONTAINERNAME=dind-unprivileged
+#   #-  - HOST_OS -
+#   #-    The host OS name.
+#   HOST_OS=Unraid
+#   #-  - TZ -
+#   #-    The timezone.
+#   TZ=Etc/UTC
+#
+#   #@ Network Config
+#   #-  - DIND_NETWORK -
+#   #-    Docker network name (must exist).
+#   DIND_NETWORK=dind-private
+#
+#   #@ Resource Limits
+#   #-  - DEFAULT_PIDS -
+#   #-    PIDs limit for the container.
+#   DEFAULT_PIDS=2048
+#
+#   #@ Container Config
+#   #-  - DATA_PATH -
+#   DATA_PATH=/mnt/user/system/dind
+#   #-  - DOCKER_FORCE_INSECURE_TCP -
+#   #-    Expose tcp://0.0.0.0:2375 even when TLS is enabled on 2376.
+#   DOCKER_FORCE_INSECURE_TCP=false
+#
+# ---------------
+---
+networks:
+  dind-private:
+    external: true
+    name: ${DIND_NETWORK:-dind-private}
+
+services:
+  dind:
+    image: ghcr.io/josh5/ubuntu-dind
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    deploy:
+      resources:
+        limits:
+          pids: ${DEFAULT_PIDS:-2048}
+
+    # >- UNPRIVILEGED MODE -<
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_NICE
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+
+    # ENVIRONMENT:
+    environment:
+      TZ: ${TZ}
+      HOST_OS: ${HOST_OS}
+      HOST_HOSTNAME: ${HOST_HOSTNAME:?}
+      HOST_CONTAINERNAME: ${HOST_CONTAINERNAME:?}
+      DOCKER_TLS_CERTDIR: /certs
+      DOCKER_FORCE_INSECURE_TCP: ${DOCKER_FORCE_INSECURE_TCP:-false}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+
+    # NETWORK:
+    networks:
+      dind-private:
+        aliases:
+          - docker
+    ports:
+      - target: 2375
+        published: 2375
+        mode: host
+      - target: 2376
+        published: 2376
+        mode: host
+    hostname: ${HOST_HOSTNAME:?}
+    extra_hosts:
+      - '${HOST_HOSTNAME:?}:127.0.0.1'
+
+    # VOLUMES:
+    volumes:
+      - type: bind
+        source: ${DATA_PATH:?}/certs
+        target: /certs
+      - type: bind
+        source: ${DATA_PATH:?}/etc
+        target: /etc/docker
+      - type: bind
+        source: ${DATA_PATH:?}/var
+        target: /var/lib/docker
